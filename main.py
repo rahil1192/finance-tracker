@@ -171,36 +171,6 @@ if dfs:
 
     st.subheader("🔍 Filter Transactions")
 
-    # with st.expander("Click to filter your transactions"):
-    #     min_date = df["Date"].min()
-    #     max_date = df["Date"].max()
-
-    #     date_range = st.date_input(
-    #         "Select Date Range",
-    #         value=(min_date, max_date),
-    #         min_value=min_date,
-    #         max_value=max_date
-    #     )
-
-    # existing_categories = df["Category"].dropna().unique().tolist()
-    # all_categories = sorted(
-    #     set(existing_categories +
-    #         st.session_state.custom_categories + ["Uncategorized"])
-    # )
-
-    # selected_categories = st.multiselect(
-    #     "Filter by Categories",
-    #     options=all_categories,
-    #     default=all_categories
-    # )
-
-    # if isinstance(date_range, tuple) and len(date_range) == 2:
-    #     start_date, end_date = date_range
-    #     df = df[(df["Date"] >= pd.to_datetime(start_date)) &
-    #             (df["Date"] <= pd.to_datetime(end_date))]
-
-    # df = df[df["Category"].isin(selected_categories)]
-
     existing_categories = df["Category"].dropna().unique().tolist()
     all_categories = sorted(
         set(existing_categories + st.session_state.custom_categories + ["Uncategorized"]))
