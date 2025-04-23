@@ -1,0 +1,21 @@
+{
+  "sami fruits": "Groceries",
+  "costco wholesal": "Groceries",
+  "marche victoria": "Groceries",
+  "petro-canada": "Fuel",
+  "internet bill": "Property Tax",
+  "preauthorized debit 000 bank": "Mortgage",
+  "service charge": "Bank Charges",
+  "wise payments": "Transfers",
+  "levio conseils": "Income",
+  "montreal (ville de)": "Bill Pay",
+  "e-transfer": "Transfers",
+  "dollarama": "Groceries",
+  "__custom_categories__": [
+    "Mortgage",
+    "Dining",
+    "Property Tax",
+    "Cash"
+  ],
+  "atm withdrawal cote-vertu + grimard 3d28": "Cash"
+}
