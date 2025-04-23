@@ -6,6 +6,7 @@ import os
 import json
 import plotly.express as px
 from datetime import datetime
+import calendar
 
 st.set_page_config(page_title="Finance Categorizer", layout="wide")
 
@@ -132,14 +133,50 @@ if "custom_categories" not in st.session_state:
 st.title("💰 Finance Statement Categorizer")
 
 st.sidebar.subheader("📂 Load a previously saved statement")
+
 saved_files = []
+month_map = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+}
+file_month_map = {}
+
+# Step 1: Gather files and extract month from folder name
 for root, dirs, files in os.walk(SAVE_DIR):
     for file in files:
         if file.endswith(".pdf"):
-            saved_files.append(os.path.join(root, file))
-selected_files = st.sidebar.multiselect("Choose saved statements to load",
-                                        options=saved_files,
-                                        default=[])
+            path = os.path.join(root, file)
+            saved_files.append(path)
+
+            # Get parent folder like Mar_2025
+            folder = os.path.basename(os.path.dirname(path)).lower()
+
+            # Extract month abbreviation (first 3 letters) and match to number
+            match = re.match(r"([a-z]{3})", folder)
+            if match:
+                month_str = match.group(1)
+                if month_str in month_map:
+                    file_month_map[path] = month_map[month_str]
+
+# Step 2: Find closest file by month
+current_month_idx = datetime.now().month
+
+
+def month_distance(target, current):
+    return min((target - current) % 12, (current - target) % 12)
+
+
+closest_file = None
+if file_month_map:
+    closest_file = min(file_month_map, key=lambda f: month_distance(
+        file_month_map[f], current_month_idx))
+
+# Step 3: Display multiselect with closest file as default
+selected_files = st.sidebar.multiselect(
+    "Choose saved statements to load",
+    options=saved_files,
+    default=[closest_file] if closest_file else []
+)
 
 
 uploaded_files = st.sidebar.file_uploader("Upload your bank statements (PDFs)", type=[
