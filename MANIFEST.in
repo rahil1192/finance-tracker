@@ -1,0 +1,6 @@
+include README.md
+include requirements.txt
+include vendor_map.json
+include budget_map.json
+include categories.json
+recursive-include saved_statements *.pdf 
