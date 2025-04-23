@@ -185,6 +185,20 @@ if dfs:
 
     df = categorize(df, vendor_map)
 
+    existing_categories = df["Category"].dropna().unique().tolist()
+    all_categories = sorted(
+        set(existing_categories + st.session_state.custom_categories + ["Uncategorized"]))
+
+    st.subheader("🔍 Filter by Category")
+    selected_categories = st.multiselect(
+        "Select category(ies) to view:",
+        options=["All"] + all_categories,
+        default=["All"]
+    )
+
+    if "All" not in selected_categories:
+        df = df[df["Category"].isin(selected_categories)]
+
     st.subheader("➕ Add Custom Category")
     with st.form("add_category_form", clear_on_submit=True):
         new_category = st.text_input("New Category")
