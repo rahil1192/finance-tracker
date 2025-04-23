@@ -131,15 +131,16 @@ if "custom_categories" not in st.session_state:
 
 st.title("💰 Finance Statement Categorizer")
 
-st.subheader("📂 Load a previously saved statement")
-saved_files = []
-for root, dirs, files in os.walk(SAVE_DIR):
-    for file in files:
-        if file.endswith(".pdf"):
-            saved_files.append(os.path.join(root, file))
+with st.sidebar:
+    st.subheader("📂 Load a previously saved statement")
+    saved_files = []
+    for root, dirs, files in os.walk(SAVE_DIR):
+        for file in files:
+            if file.endswith(".pdf"):
+                saved_files.append(os.path.join(root, file))
 
-selected_file = st.selectbox("Choose from saved statements",
-                             saved_files if saved_files else ["No saved files available"])
+    selected_file = st.selectbox("Choose from saved statements",
+                                 ["None"] + saved_files if saved_files else ["No saved files available"])
 
 uploaded_files = st.file_uploader("Upload your bank statements (PDFs)", type=[
                                   "pdf"], accept_multiple_files=True)
@@ -257,7 +258,7 @@ if dfs:
                     title="Expenses by Category",
                     color="Category"
                 )
-            st.plotly_chart(chart, use_container_width=True)
+                st.plotly_chart(chart, use_container_width=True)
 
     with tab2:
         st.subheader("📊 Expense Summary")
