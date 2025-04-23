@@ -208,9 +208,9 @@ if dfs:
         df = df[df["Category"].isin(selected_categories)]
 
     tab1, tab2, tab3, tab4 = st.tabs(
-        ["📉 Expenses (Debits)", "📈 Summary", "📥 Payments (Credits)", "📆 Monthly Report"])
+        ["📈 Summary", "📉 Expenses (Debits)", "📥 Payments (Credits)", "📆 Monthly Report"])
 
-    with tab1:
+    with tab2:
         st.subheader("✏️ Edit Debit Categories")
         debits_df = df[df["Debit/Credit"] == "Debit"].copy()
         edited_debits = st.data_editor(
@@ -222,12 +222,14 @@ if dfs:
             key="debits_editor"
         )
         df.update(edited_debits)
-        st.subheader("📊 Debit Summary")
+
         debit_summary = edited_debits.groupby(
             "Category")["Amount"].sum().reset_index()
         debit_summary = debit_summary.sort_values("Amount", ascending=False)
-        st.dataframe(debit_summary, use_container_width=True)
-
+        st.subheader("📊 Debit Summary")
+        with st.expander("Show details"):
+            st.dataframe(debit_summary, use_container_width=True)
+        st.markdown("### ")
         if not debit_summary.empty:
             chart_type = st.radio("Choose Chart Type", options=[
                                   "Pie Chart", "Bar Chart"], horizontal=True, key="debit_chart_type")
@@ -240,22 +242,43 @@ if dfs:
                              title="Expenses by Category", color="Category")
                 st.plotly_chart(fig, use_container_width=True)
 
-    with tab2:
-        st.subheader("📊 Expense Summary")
-        debit_summary = df[df["Debit/Credit"] ==
-                           "Debit"].groupby("Category")["Amount"].sum().reset_index()
-        debit_summary = debit_summary.sort_values("Amount", ascending=False)
-        st.dataframe(debit_summary, use_container_width=True)
+    with tab1:
+        st.subheader("📊 Total Summary")
+
+        # Calculate totals
+        total_debits = df[df["Debit/Credit"] == "Debit"]["Amount"].sum()
+        total_credits = df[df["Debit/Credit"] == "Credit"]["Amount"].sum()
+        balance = total_credits - total_debits
+
+        # Display metrics
+        col1, col2, col3 = st.columns(3)
+        col1.metric("💸 Total Debits", f"C${total_debits:,.2f}")
+        col2.metric("💰 Total Credits", f"C${total_credits:,.2f}")
+        col3.metric("🧾 Net Balance", f"C${balance:,.2f}",
+                    delta_color="inverse" if balance < 0 else "normal")
+
+        st.markdown("### 📈 Financial Overview Chart")
+        st.write("")  # spacing
+
+        # Create a DataFrame for the chart
+        summary_df = pd.DataFrame({
+            "Type": ["Credit", "Debit", "Balance"],
+            "Amount": [total_credits, total_debits, balance]
+        })
+
+        # Choose chart type
         chart_type = st.radio("Select chart type:", [
-                              "Pie Chart", "Bar Chart"], horizontal=True)
-        if not debit_summary.empty:
-            if chart_type == "Pie Chart":
-                fig = px.pie(debit_summary, values="Amount",
-                             names="Category", title="Expenses by Category", hole=0.4)
-            else:
-                fig = px.bar(debit_summary, x="Category", y="Amount",
-                             title="Expenses by Category", color="Category")
-            st.plotly_chart(fig, use_container_width=True)
+            "Bar Chart", "Pie Chart"], horizontal=True)
+
+        # Plot chart
+        if chart_type == "Bar Chart":
+            fig = px.bar(summary_df, x="Type", y="Amount",
+                         color="Type", title="Financial Overview")
+        else:
+            fig = px.pie(summary_df, values="Amount", names="Type",
+                         title="Financial Overview", hole=0.4)
+
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
         st.subheader("💳 Credit Transactions (Income / Transfers)")
