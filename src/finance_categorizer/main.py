@@ -88,12 +88,21 @@ uploaded_files = st.sidebar.file_uploader(
 
 # Process files
 dfs = []
+loaded_months = []  # Track which months are loaded
+
 if uploaded_files:
     for file in uploaded_files:
         saved_path = save_uploaded_file(file)
         with open(saved_path, "rb") as f:
             parsed = parse_pdf_transactions(f)
             dfs.append(parsed)
+            # Extract month from the saved path
+            folder = os.path.basename(os.path.dirname(saved_path))
+            month_match = re.match(r"([A-Za-z]{3})_(\d{4})", folder)
+            if month_match:
+                month_str, year = month_match.groups()
+                month_name = month_str.capitalize()
+                loaded_months.append(f"{month_name} {year}")
     st.success(f"✅ Processed {len(uploaded_files)} uploaded file(s).")
 elif selected_files:
     for selected_file in selected_files:
@@ -101,7 +110,20 @@ elif selected_files:
             with open(selected_file, "rb") as f:
                 parsed = parse_pdf_transactions(f)
                 dfs.append(parsed)
+                # Extract month from the selected file path
+                folder = os.path.basename(os.path.dirname(selected_file))
+                month_match = re.match(r"([A-Za-z]{3})_(\d{4})", folder)
+                if month_match:
+                    month_str, year = month_match.groups()
+                    month_name = month_str.capitalize()
+                    loaded_months.append(f"{month_name} {year}")
             st.toast(f"✅ Loaded: {os.path.basename(selected_file)}")
+
+# Display loaded statements
+if loaded_months:
+    st.subheader("📅 Loaded Statements")
+    for month in loaded_months:
+        st.write(f"• {month}")
 
 if dfs:
     # Combine and process data
