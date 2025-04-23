@@ -131,16 +131,14 @@ if "custom_categories" not in st.session_state:
 
 st.title("💰 Finance Statement Categorizer")
 
-with st.sidebar:
-    st.subheader("📂 Load a previously saved statement")
-    saved_files = []
-    for root, dirs, files in os.walk(SAVE_DIR):
-        for file in files:
-            if file.endswith(".pdf"):
-                saved_files.append(os.path.join(root, file))
-
-    selected_file = st.selectbox("Choose from saved statements",
-                                 ["None"] + saved_files if saved_files else ["No saved files available"])
+st.sidebar.subheader("📂 Load a previously saved statement")
+saved_files = []
+for root, dirs, files in os.walk(SAVE_DIR):
+    for file in files:
+        if file.endswith(".pdf"):
+            saved_files.append(os.path.join(root, file))
+selected_file = st.sidebar.selectbox(
+    "Choose from saved statements", ["None"] + saved_files)
 
 uploaded_files = st.file_uploader("Upload your bank statements (PDFs)", type=[
                                   "pdf"], accept_multiple_files=True)
@@ -153,7 +151,7 @@ if uploaded_files:
             parsed = parse_pdf_transactions(f)
             dfs.append(parsed)
     st.success(f"✅ Processed {len(uploaded_files)} uploaded file(s).")
-elif selected_file and os.path.exists(selected_file):
+elif selected_file != "None" and os.path.exists(selected_file):
     with open(selected_file, "rb") as f:
         parsed = parse_pdf_transactions(f)
         dfs.append(parsed)
@@ -163,20 +161,6 @@ if dfs:
     df = pd.concat(dfs, ignore_index=True)
     df.sort_values(by="Date", inplace=True)
 
-    min_date = df["Date"].min()
-    max_date = df["Date"].max()
-
-    st.subheader("📅 Filter by Date Range")
-    date_range = st.date_input("Select date range:", value=(
-        min_date, max_date), min_value=min_date, max_value=max_date)
-
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_date, end_date = date_range
-        df = df[(df["Date"] >= pd.to_datetime(start_date))
-                & (df["Date"] <= pd.to_datetime(end_date))]
-    else:
-        st.error("⚠️ Please select both a start and end date.")
-
     vendor_map = load_vendor_map()
     saved_custom_cats = vendor_map.get("__custom_categories__", [])
     for cat in saved_custom_cats:
@@ -185,46 +169,68 @@ if dfs:
 
     df = categorize(df, vendor_map)
 
+    st.subheader("🔍 Filter Transactions")
+
+    # with st.expander("Click to filter your transactions"):
+    #     min_date = df["Date"].min()
+    #     max_date = df["Date"].max()
+
+    #     date_range = st.date_input(
+    #         "Select Date Range",
+    #         value=(min_date, max_date),
+    #         min_value=min_date,
+    #         max_value=max_date
+    #     )
+
+    # existing_categories = df["Category"].dropna().unique().tolist()
+    # all_categories = sorted(
+    #     set(existing_categories +
+    #         st.session_state.custom_categories + ["Uncategorized"])
+    # )
+
+    # selected_categories = st.multiselect(
+    #     "Filter by Categories",
+    #     options=all_categories,
+    #     default=all_categories
+    # )
+
+    # if isinstance(date_range, tuple) and len(date_range) == 2:
+    #     start_date, end_date = date_range
+    #     df = df[(df["Date"] >= pd.to_datetime(start_date)) &
+    #             (df["Date"] <= pd.to_datetime(end_date))]
+
+    # df = df[df["Category"].isin(selected_categories)]
+
     existing_categories = df["Category"].dropna().unique().tolist()
     all_categories = sorted(
         set(existing_categories + st.session_state.custom_categories + ["Uncategorized"]))
 
-    st.subheader("🔍 Filter by Category")
-    selected_categories = st.multiselect(
-        "Select category(ies) to view:",
-        options=["All"] + all_categories,
-        default=["All"]
-    )
+    with st.expander("🔍 Filter Transactions"):
+        min_date = df["Date"].min()
+        max_date = df["Date"].max()
+        date_range = st.date_input("Select date range:", value=(
+            min_date, max_date), min_value=min_date, max_value=max_date)
 
-    if "All" not in selected_categories:
+        all_categories_option = ["All"] + all_categories
+        default_selection = ["All"]
+
+        selected_option = st.multiselect(
+            "Select Categories to Include",
+            options=all_categories_option,
+            default=default_selection
+        )
+
+# Logic to handle "All" option
+        if "All" in selected_option:
+            selected_categories = all_categories  # treat as selecting everything
+        else:
+            selected_categories = selected_option
+
+        if isinstance(date_range, tuple) and len(date_range) == 2:
+            start_date, end_date = date_range
+            df = df[(df["Date"] >= pd.to_datetime(start_date))
+                    & (df["Date"] <= pd.to_datetime(end_date))]
         df = df[df["Category"].isin(selected_categories)]
-
-    st.subheader("➕ Add Custom Category")
-    with st.form("add_category_form", clear_on_submit=True):
-        new_category = st.text_input("New Category")
-        submitted = st.form_submit_button("Add Category")
-        if submitted:
-            new_category_clean = new_category.strip()
-            if new_category_clean and new_category_clean not in st.session_state.custom_categories:
-                st.session_state.custom_categories.append(new_category_clean)
-                st.success(f"✅ Added new category: {new_category_clean}")
-            elif new_category_clean in st.session_state.custom_categories:
-                st.warning("⚠️ This category already exists.")
-            else:
-                st.warning("⚠️ Please enter a valid category.")
-
-    if st.session_state.custom_categories:
-        with st.expander("🗑️ Manage Custom Categories"):
-            to_delete = st.multiselect(
-                "Select categories to remove", st.session_state.custom_categories)
-            if st.button("Delete Selected Categories"):
-                st.session_state.custom_categories = [
-                    cat for cat in st.session_state.custom_categories if cat not in to_delete]
-                st.success("🗑️ Selected categories removed.")
-
-    existing_categories = df["Category"].dropna().unique().tolist()
-    all_categories = sorted(
-        set(existing_categories + st.session_state.custom_categories + ["Uncategorized"]))
 
     tab1, tab2, tab3, tab4 = st.tabs(
         ["📉 Expenses (Debits)", "📈 Summary", "📥 Payments (Credits)", "📆 Monthly Report"])
@@ -248,31 +254,16 @@ if dfs:
         st.dataframe(debit_summary, use_container_width=True)
 
         if not debit_summary.empty:
-            chart_type = st.radio(
-                "Choose Chart Type",
-                options=["Pie Chart", "Bar Chart"],
-                horizontal=True,
-                key="debit_chart_type"
-            )
-
+            chart_type = st.radio("Choose Chart Type", options=[
+                                  "Pie Chart", "Bar Chart"], horizontal=True, key="debit_chart_type")
             if chart_type == "Pie Chart":
-                fig = px.pie(
-                    debit_summary,
-                    values="Amount",
-                    names="Category",
-                    title="Debits by Category",
-                    hole=0.4
-                )
+                fig = px.pie(debit_summary, values="Amount",
+                             names="Category", title="Debits by Category", hole=0.4)
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                chart = px.bar(
-                    debit_summary,
-                    x="Category",
-                    y="Amount",
-                    title="Expenses by Category",
-                    color="Category"
-                )
-                st.plotly_chart(chart, use_container_width=True)
+                fig = px.bar(debit_summary, x="Category", y="Amount",
+                             title="Expenses by Category", color="Category")
+                st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
         st.subheader("📊 Expense Summary")
