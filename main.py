@@ -137,11 +137,13 @@ for root, dirs, files in os.walk(SAVE_DIR):
     for file in files:
         if file.endswith(".pdf"):
             saved_files.append(os.path.join(root, file))
-selected_file = st.sidebar.selectbox(
-    "Choose from saved statements", ["None"] + saved_files)
+selected_files = st.sidebar.multiselect("Choose saved statements to load",
+                                        options=saved_files,
+                                        default=[])
 
-uploaded_files = st.file_uploader("Upload your bank statements (PDFs)", type=[
-                                  "pdf"], accept_multiple_files=True)
+
+uploaded_files = st.sidebar.file_uploader("Upload your bank statements (PDFs)", type=[
+    "pdf"], accept_multiple_files=True)
 
 dfs = []
 if uploaded_files:
@@ -151,11 +153,14 @@ if uploaded_files:
             parsed = parse_pdf_transactions(f)
             dfs.append(parsed)
     st.success(f"✅ Processed {len(uploaded_files)} uploaded file(s).")
-elif selected_file != "None" and os.path.exists(selected_file):
-    with open(selected_file, "rb") as f:
-        parsed = parse_pdf_transactions(f)
-        dfs.append(parsed)
-    st.success(f"✅ Loaded saved file: {os.path.basename(selected_file)}")
+elif selected_files:
+    for selected_file in selected_files:
+        if os.path.exists(selected_file):
+            with open(selected_file, "rb") as f:
+                parsed = parse_pdf_transactions(f)
+                dfs.append(parsed)
+            st.toast(f"✅ Loaded: {os.path.basename(selected_file)}")
+
 
 if dfs:
     df = pd.concat(dfs, ignore_index=True)
