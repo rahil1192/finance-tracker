@@ -1,32 +1,69 @@
-# Finance Statement Categorizer
+# Finance Categorizer
 
-A Streamlit application for categorizing and analyzing financial statements from PDF files.
+A production-ready application for categorizing and analyzing financial transactions from PDF statements.
 
 ## Features
 
-- Upload and parse PDF bank statements
-- Automatic transaction categorization
-- Interactive data editing and visualization
-- Monthly expense reports
-- Custom category management
-- Vendor mapping for automatic categorization
+- Upload and process PDF bank statements
+- Automatic vendor categorization
+- Transaction analysis and visualization
+- Persistent storage of transaction history
+- Customizable vendor mapping
+- User-friendly interface
 
 ## Installation
 
 1. Clone the repository
 2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```bash
-pip install -r requirements.txt
-```
+## Configuration
+
+The application can be configured through `config.yaml`:
+
+- `data`: File paths and storage settings
+- `ui`: Interface customization
+- `processing`: Data processing limits and formats
 
 ## Usage
 
-Run the application:
+1. Start the application:
 
-```bash
-streamlit run src/finance_categorizer/main.py
-```
+   ```bash
+   streamlit run main.py
+   ```
+
+2. Upload PDF bank statements
+3. View and categorize transactions
+4. Analyze spending patterns
+5. Export categorized data
+
+## Error Handling
+
+The application includes comprehensive error handling:
+
+- File validation
+- Data processing errors
+- User input validation
+- Logging to file and console
+
+## Performance
+
+- Caching for frequently accessed data
+- Optimized data processing
+- Efficient file handling
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+
+## License
+
+MIT License
 
 ## Project Structure
 

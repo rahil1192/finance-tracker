@@ -8,7 +8,7 @@ def classify_transaction_type(details):
     text = details.lower()
     if "rewards" in text or "rebate" in text or "refund" in text:
         return "Credit"
-    debit_keywords = ["retail", "debit", "purchase",
+    debit_keywords = ["retail", "debit", "purchase", "fulfill request",
                       "bill", "charge", "petro", "service", "withdrawal"]
     if any(k in text for k in debit_keywords):
         return "Debit"

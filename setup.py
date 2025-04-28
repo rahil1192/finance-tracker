@@ -9,7 +9,10 @@ setup(
         "streamlit>=1.32.0",
         "pandas>=2.2.0",
         "pdfplumber>=0.10.3",
-        "plotly>=5.18.0"
+        "plotly>=5.18.0",
+        "fastapi>=0.110.0",
+        "uvicorn>=0.27.1",
+        "python-multipart>=0.0.9"
     ],
     python_requires=">=3.8",
     include_package_data=True,
