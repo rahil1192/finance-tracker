@@ -480,21 +480,12 @@ else:
     df = pd.DataFrame()
     available_months = []
 
-# Define a callback for month selection
-
-
-def on_month_select():
-    st.session_state.current_month_filter = st.session_state.month_selector
-    st.session_state.selected_months_filter = st.session_state.month_selector
-
-
 # Store the selected months in session state using the callback
 selected_months = st.sidebar.multiselect(
     "Select months to view",
     options=available_months,
-    default=st.session_state.current_month_filter,
+    default=available_months[:1],  # Optionally select the most recent month by default
     key="month_selector",
-    on_change=on_month_select,
     help="Select one or more months to filter transactions"
 )
 
@@ -612,6 +603,7 @@ if uploaded_files and not st.session_state.upload_success:
                         st.success(
                             f"✅ Added {len(transactions)} new transactions from {file.name}")
                         st.session_state.upload_success = True
+                        st.rerun()
                     except Exception as e:
                         logger.error(f"Error saving data: {str(e)}")
                         st.error(
@@ -685,119 +677,48 @@ try:
                     # Add reconciliation section
                     with st.expander("Statement Details", expanded=True):
                         col1, col2, col3 = st.columns(3)
+                        # (You can keep any summary info you want here)
 
-                        # Get the statement balances based on selected months
-                        if selected_months:
-                            # Convert YYYY-MM format to Month_YYYY format used in database
-                            db_month_formats = []
-                            for month in selected_months:
-                                year, month_num = month.split('-')
-                                # Convert month number to name
-                                month_name = datetime.strptime(
-                                    month_num, '%m').strftime('%b')
-                                db_month_formats.append(
-                                    f"{month_name}_{year}")
-                            pdf_files_query = db.query(PDFFile).filter(
-                                PDFFile.month_year.in_(db_month_formats)
-                            ).order_by(PDFFile.upload_date.asc())
-                            pdf_files_list = pdf_files_query.all()
-                        else:
-                            # If no months selected, fetch ALL statements
-                            pdf_files_query = db.query(PDFFile).order_by(PDFFile.upload_date.asc())
-                            pdf_files_list = pdf_files_query.all()
+                    # Debug information (now truly outside the expander and else block)
+                    
+                    if selected_months:
+                        db_month_formats = []
+                        for month in selected_months:
+                            year, month_num = month.split('-')
+                            month_name = datetime.strptime(month_num, '%m').strftime('%b')
+                            db_month_formats.append(f"{month_name}_{year}")
+                        pdf_files_query = db.query(PDFFile).filter(
+                            PDFFile.month_year.in_(db_month_formats)
+                        ).order_by(PDFFile.upload_date.asc())
+                        pdf_files_list = pdf_files_query.all()
+                    else:
+                        db_month_formats = []  # Ensure this is always defined
+                        pdf_files_query = db.query(PDFFile).order_by(PDFFile.upload_date.asc())
+                        pdf_files_list = pdf_files_query.all()
+                    
+                    if pdf_files_list:
+                        # Always show per-statement reconciliation table
+                        statement_rows = []
+                        for pdf in pdf_files_list:
+                            statement_transactions = [t for t in transactions if getattr(t, "pdf_file_id", None) == pdf.id]
+                            total_debits = sum(t.amount for t in statement_transactions if t.transaction_type == "Debit")
+                            total_credits = sum(t.amount for t in statement_transactions if t.transaction_type == "Credit")
+                            calculated_closing = (pdf.opening_balance or 0) + total_credits - total_debits
+                            difference = (pdf.closing_balance - calculated_closing) if pdf.closing_balance is not None else None
 
-                            # Debug information
-                            st.sidebar.write("Debug: Statement Matching")
-                            if selected_months:
-                                st.sidebar.write(f"Looking for months: {db_month_formats}")
-                            st.sidebar.write(f"Found {len(pdf_files_list)} matching statements")
-
-                            if pdf_files_list:
-                                # Show per-statement reconciliation table if more than one statement is selected OR if no months are selected
-                                if len(pdf_files_list) > 1 or not selected_months:
-                                    statement_rows = []
-                                    for pdf in pdf_files_list:
-                                        statement_transactions = [t for t in transactions if getattr(t, "pdf_file_id", None) == pdf.id]
-                                        total_debits = sum(t.amount for t in statement_transactions if t.transaction_type == "Debit")
-                                        total_credits = sum(t.amount for t in statement_transactions if t.transaction_type == "Credit")
-                                        calculated_closing = (pdf.opening_balance or 0) + total_credits - total_debits
-                                        difference = (pdf.closing_balance - calculated_closing) if pdf.closing_balance is not None else None
-
-                                        statement_rows.append({
-                                            "Statement": pdf.original_filename,
-                                            "Bank": pdf.bank,
-                                            "Month/Year": pdf.month_year,
-                                            "Opening Balance": pdf.opening_balance,
-                                            "Total Debits": total_debits,
-                                            "Total Credits": total_credits,
-                                            "Closing Balance": pdf.closing_balance,
-                                            "Difference": difference
-                                        })
-                                    df_statements = pd.DataFrame(statement_rows)
-                                    st.markdown("### Individual Statement Reconciliation")
-                                    st.dataframe(df_statements, use_container_width=True)
-                                else:
-                                    # Only for a single statement: define and use opening_balance and closing_balance
-                                    first_statement = pdf_files_list[0]
-                                    opening_balance = first_statement.opening_balance if first_statement.opening_balance is not None else 0.0
-                                    last_statement = pdf_files_list[-1]
-                                    closing_balance = last_statement.closing_balance if last_statement.closing_balance is not None else None
-
-                                    with col1:
-                                        st.metric("Opening Balance",
-                                                  f"C${opening_balance:,.2f}")
-
-                                    # Calculate totals for reconciliation
-                                    total_debits = df_display[df_display["transaction_type"] == "Debit"]["amount"].sum()
-                                    total_credits = df_display[df_display["transaction_type"] == "Credit"]["amount"].sum()
-                                    calculated_balance = opening_balance + total_credits - total_debits
-
-                                    # Show reconciliation results
-                                    with col2:
-                                        if closing_balance is not None:
-                                            st.metric("Closing Balance",
-                                                      f"C${closing_balance:,.2f}")
-                                        else:
-                                            st.metric(
-                                                "Closing Balance", f"C${calculated_balance:,.2f} (Calculated)")
-
-                                    with col3:
-                                        if closing_balance is not None:
-                                            difference = closing_balance - calculated_balance
-                                            st.metric("Difference from Statement",
-                                                      f"C${abs(difference):.2f}",
-                                                      delta=f"{'Matches' if abs(difference) < 0.01 else 'Off by ' + f'C${abs(difference):.2f}'}",
-                                                      delta_color="normal" if abs(difference) < 0.01 else "inverse")
-                                        else:
-                                            st.metric("Calculated Balance",
-                                                      f"C${calculated_balance:,.2f}")
-
-                                    # Show detailed breakdown and reconciliation status only for single statement
-                                    st.markdown("### Reconciliation Details")
-                                    col1, col2, col3 = st.columns(3)
-                                    col1.metric("\U0001F4B8 Total Debits", f"C${total_debits:,.2f}")
-                                    col2.metric("\U0001F4B0 Total Credits",
-                                                f"C${total_credits:,.2f}")
-                                    col3.metric("\U0001F9FE Net Change",
-                                                f"C${total_credits - total_debits:,.2f}")
-
-                                    # Add reconciliation status
-                                    if closing_balance is not None:
-                                        if abs(calculated_balance - closing_balance) < 0.01:
-                                            st.success(
-                                                "\u2705 Balances Match! Your transactions are reconciled.")
-                                        else:
-                                            st.warning(
-                                                f"\u26A0\uFE0F Balances Don't Match! There's a difference of C${abs(calculated_balance - closing_balance):.2f}")
-                                            st.markdown("""
-                                            **Possible reasons for the difference:**
-                                            - Missing transactions
-                                            - Duplicate transactions
-                                            - Incorrect transaction amounts
-                                            - Pending transactions not included
-                                            - Bank fees or interest not recorded
-                                            """)
-                            
+                            statement_rows.append({
+                                "Statement": pdf.original_filename,
+                                "Bank": pdf.bank,
+                                "Month/Year": pdf.month_year,
+                                "Opening Balance": pdf.opening_balance,
+                                "Total Debits": total_debits,
+                                "Total Credits": total_credits,
+                                "Closing Balance": pdf.closing_balance,
+                                "Difference": difference
+                            })
+                        df_statements = pd.DataFrame(statement_rows)
+                        st.markdown("### Individual Statement Reconciliation")
+                        st.dataframe(df_statements, use_container_width=True)
 
                 with tab2:
                     st.subheader("📊 Total Summary")
