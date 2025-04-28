@@ -515,6 +515,21 @@ with st.sidebar.expander("🔍 Debug Information"):
 st.sidebar.divider()
 st.sidebar.subheader("➕ Add New Statements")
 
+# Bank selection dropdown
+bank_options = ["TD", "CIBC"]
+bank_selected = st.sidebar.selectbox("Which bank?", options=["Select a bank..."] + bank_options, index=0, key="bank_selector")
+
+# Only show file uploader if a bank is selected
+if bank_selected != "Select a bank...":
+    uploaded_files = st.sidebar.file_uploader(
+        "Upload new statement PDFs",
+        type=CONFIG['processing']['supported_file_types'],
+        accept_multiple_files=True,
+        help="Upload one or more PDF bank statements"
+    )
+else:
+    uploaded_files = None
+
 # Add Clear Data button
 st.sidebar.divider()
 with st.sidebar.expander("⚠️ Danger Zone"):
@@ -543,14 +558,6 @@ with st.sidebar.expander("⚠️ Danger Zone"):
         # Reset confirmation if button is not clicked
         st.session_state.confirm_clear = False
 
-# Process new uploads
-uploaded_files = st.sidebar.file_uploader(
-    "Upload new statement PDFs",
-    type=CONFIG['processing']['supported_file_types'],
-    accept_multiple_files=True,
-    help="Upload one or more PDF bank statements"
-)
-
 if uploaded_files and not st.session_state.upload_success:
     for file in uploaded_files:
         if validate_file(file):
@@ -578,11 +585,12 @@ if uploaded_files and not st.session_state.upload_success:
 
                 if transactions:
                     try:
-                        # Save PDF file with balances
+                        # Save PDF file with balances and bank
                         pdf_file = save_pdf_file(
                             db, file.name, pdf_content, month_year,
                             opening_balance=opening_balance if opening_balance > 0 else None,
-                            closing_balance=closing_balance if closing_balance > 0 else None
+                            closing_balance=closing_balance if closing_balance > 0 else None,
+                            bank=bank_selected
                         )
 
                         # Auto-categorize transactions
@@ -717,11 +725,11 @@ try:
 
                                         statement_rows.append({
                                             "Statement": pdf.original_filename,
+                                            "Bank": pdf.bank,
                                             "Month/Year": pdf.month_year,
                                             "Opening Balance": pdf.opening_balance,
                                             "Total Debits": total_debits,
                                             "Total Credits": total_credits,
-                                            "Calculated Closing": calculated_closing,
                                             "Closing Balance": pdf.closing_balance,
                                             "Difference": difference
                                         })
