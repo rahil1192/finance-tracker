@@ -8,6 +8,7 @@ import yaml
 import os
 import logging
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 # Configure logging
 logging.basicConfig(
@@ -66,6 +67,8 @@ class Transaction(Base):
     transaction_type = Column(String)  # Debit/Credit
     category = Column(String, default="Uncategorized")
     pdf_file_id = Column(Integer, index=True)  # Reference to PDFFile
+    bank = Column(String, nullable=True)
+    statement_type = Column(String, nullable=True)  # Add this line
 
 
 class VendorMapping(Base):
@@ -87,21 +90,39 @@ def init_db():
             # First time initialization
             Base.metadata.create_all(bind=engine)
             logger.info("Created new database tables")
-
-            # Import initial vendor mappings
+            
+            # Add some default vendor mappings
             db = next(get_db())
             try:
-                import_vendor_mappings_from_json(db)
+                default_mappings = {
+                    "sami fruits": "Groceries",
+                    "costco": "Groceries",
+                    "marche victoria": "Groceries",
+                    "amr fruiterie": "Groceries",
+                    "patisserie": "Dining",
+                    "petro-canada": "Fuel",
+                    "internet bill": "Utilities",
+                    "preauthorized debit 000 bank": "Mortgage",
+                    "service charge": "Bank Charges",
+                    "wise payments": "Transfers",
+                    "levio conseils": "Income",
+                    "montreal (ville de)": "Bill Pay",
+                    "e-transfer": "Transfers",
+                    "dollarama": "Groceries"
+                }
+                
+                for vendor, category in default_mappings.items():
+                    save_vendor_mapping(db, vendor, category)
+                logger.info("Added default vendor mappings")
             except Exception as e:
-                logger.error(
-                    f"Error importing initial vendor mappings: {str(e)}")
+                logger.error(f"Error adding default vendor mappings: {str(e)}")
             finally:
                 db.close()
         else:
             # Database exists, check for schema updates
             inspector = inspect(engine)
             existing_tables = inspector.get_table_names()
-
+            
             # For each table in our models
             for table in Base.metadata.sorted_tables:
                 if table.name not in existing_tables:
@@ -110,27 +131,22 @@ def init_db():
                     logger.info(f"Created missing table: {table.name}")
                 else:
                     # Check for missing columns
-                    existing_columns = {col['name']
-                                        for col in inspector.get_columns(table.name)}
+                    existing_columns = {col['name'] for col in inspector.get_columns(table.name)}
                     model_columns = {col.name for col in table.columns}
                     missing_columns = model_columns - existing_columns
-
+                    
                     if missing_columns:
-                        logger.info(
-                            f"Adding missing columns to {table.name}: {missing_columns}")
+                        logger.info(f"Adding missing columns to {table.name}: {missing_columns}")
                         with engine.begin() as connection:
                             for column_name in missing_columns:
-                                column = next(
-                                    col for col in table.columns if col.name == column_name)
+                                column = next(col for col in table.columns if col.name == column_name)
                                 # Add column with appropriate type and nullability
                                 connection.execute(text(
                                     f"ALTER TABLE {table.name} ADD COLUMN {column_name} "
                                     f"{column.type.compile(engine.dialect)} "
                                     f"{'NOT NULL' if not column.nullable else ''}"
                                 ))
-                                logger.info(
-                                    f"Added column {column_name} to {table.name}")
-
+                                logger.info(f"Added column {column_name} to {table.name}")
     except Exception as e:
         logger.error(f"Error initializing/updating database: {str(e)}")
         raise
@@ -208,20 +224,37 @@ def get_all_transactions(db):
 
 
 def save_vendor_mapping(db, vendor_substring, category):
-    mapping = db.query(VendorMapping).filter(
-        VendorMapping.vendor_substring == vendor_substring).first()
-    if mapping:
-        mapping.category = category
-    else:
-        mapping = VendorMapping(
-            vendor_substring=vendor_substring, category=category)
-        db.add(mapping)
-    db.commit()
-    return mapping
+    """Save a vendor mapping to the database."""
+    try:
+        logger.info(f"Attempting to save vendor mapping: {vendor_substring} -> {category}")
+        mapping = db.query(VendorMapping).filter(
+            VendorMapping.vendor_substring == vendor_substring).first()
+        if mapping:
+            logger.info(f"Updating existing mapping: {mapping.vendor_substring} -> {category}")
+            mapping.category = category
+        else:
+            logger.info(f"Creating new mapping: {vendor_substring} -> {category}")
+            mapping = VendorMapping(
+                vendor_substring=vendor_substring, category=category)
+            db.add(mapping)
+        db.commit()
+        logger.info(f"Successfully saved vendor mapping: {vendor_substring} -> {category}")
+        return mapping
+    except Exception as e:
+        logger.error(f"Error saving vendor mapping: {str(e)}")
+        db.rollback()
+        raise e
 
 
 def get_all_vendor_mappings(db):
-    return {m.vendor_substring: m.category for m in db.query(VendorMapping).all()}
+    """Get all vendor mappings from the database."""
+    try:
+        mappings = {m.vendor_substring: m.category for m in db.query(VendorMapping).all()}
+        logger.info(f"Retrieved {len(mappings)} vendor mappings from database")
+        return mappings
+    except Exception as e:
+        logger.error(f"Error getting vendor mappings: {str(e)}")
+        return {}
 
 
 def update_transaction_category(db, transaction_id, category):
@@ -299,15 +332,100 @@ def get_latest_statement_balance(db):
 
 
 def ensure_vendor_mappings(db):
-    """Ensure vendor mappings exist in the database, import if needed."""
+    """Ensure vendor mappings exist in the database."""
     try:
         mappings = get_all_vendor_mappings(db)
         if not mappings:
-            logger.info("No vendor mappings found, importing from JSON")
-            import_vendor_mappings_from_json(db)
-            mappings = get_all_vendor_mappings(db)
-            logger.info(f"Imported {len(mappings)} vendor mappings")
+            logger.info("No vendor mappings found in database")
         return mappings
     except Exception as e:
         logger.error(f"Error ensuring vendor mappings: {str(e)}")
         return {}
+
+
+def recategorize_all_transactions(db) -> int:
+    """Recategorize all transactions using current vendor mappings."""
+    try:
+        transactions = get_all_transactions(db)
+        vendor_map = get_all_vendor_mappings(db)
+        logger.info(f"Loaded {len(vendor_map)} vendor mappings for recategorization")
+
+        updated_count = 0
+        total_count = len(transactions)
+        logger.info(f"Processing {total_count} transactions")
+
+        for trans in transactions:
+            try:
+                # Normalize transaction details
+                details = ' '.join(trans.details.lower().split())
+                
+                # Find matching category
+                new_category = "Uncategorized"
+                for vendor, category in vendor_map.items():
+                    if vendor in details:
+                        new_category = category
+                        break
+                
+                if new_category != trans.category:
+                    logger.info(f"Updating category for '{trans.details}' from '{trans.category}' to '{new_category}'")
+                    update_transaction_category(db, trans.id, new_category)
+                    updated_count += 1
+            except Exception as e:
+                logger.error(f"Error processing transaction {trans.id}: {str(e)}")
+                continue
+
+        db.commit()
+        logger.info(f"Updated {updated_count} out of {total_count} transaction categories")
+        return updated_count
+    except Exception as e:
+        logger.error(f"Error recategorizing transactions: {str(e)}")
+        db.rollback()
+        return 0
+
+
+def export_vendor_mappings_to_json(db):
+    """Export vendor mappings from database to vendor_map.json file."""
+    try:
+        # Get all mappings from database
+        mappings = get_all_vendor_mappings(db)
+        
+        # Get the absolute path to vendor_map.json
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        vendor_map_path = os.path.join(current_dir, 'vendor_map.json')
+        
+        if not os.path.exists(vendor_map_path):
+            vendor_map_path = 'vendor_map.json'  # Try current directory
+        
+        # Add custom categories if they exist in the file
+        if os.path.exists(vendor_map_path):
+            with open(vendor_map_path, 'r', encoding='utf-8') as f:
+                existing_mappings = json.load(f)
+                if "__custom_categories__" in existing_mappings:
+                    mappings["__custom_categories__"] = existing_mappings["__custom_categories__"]
+        
+        # Write mappings to file
+        with open(vendor_map_path, 'w', encoding='utf-8') as f:
+            json.dump(mappings, f, indent=2)
+        
+        logger.info(f"Exported {len(mappings)} vendor mappings to {vendor_map_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error exporting vendor mappings: {str(e)}")
+        return False
+
+
+def update_transaction_details(db: Session, transaction_id: int, new_details: str) -> bool:
+    """Update the details of a transaction."""
+    try:
+        transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+        if transaction:
+            transaction.details = new_details
+            db.commit()
+            logger.info(f"Updated transaction {transaction_id} details to: {new_details}")
+            return True
+        logger.warning(f"Transaction {transaction_id} not found")
+        return False
+    except Exception as e:
+        logger.error(f"Error updating transaction details: {str(e)}")
+        db.rollback()
+        return False

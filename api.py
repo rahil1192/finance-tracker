@@ -10,7 +10,7 @@ from models import (
     get_db, save_transaction, get_all_transactions, save_vendor_mapping,
     get_all_vendor_mappings, update_transaction_category, save_pdf_file,
     get_pdf_files, get_pdf_content, Transaction, PDFFile,
-    import_vendor_mappings_from_json
+    import_vendor_mappings_from_json, export_vendor_mappings_to_json
 )
 from pydantic import BaseModel
 import logging
@@ -97,20 +97,37 @@ def categorize_transaction(details: str, vendor_map: Dict) -> str:
     if not details or not vendor_map:
         return "Uncategorized"
 
-    details = ' '.join(details.lower().split())
-    main_text = re.sub(r'[0-9]+', '', details)
-    main_text = re.sub(r'[^\w\s]', ' ', main_text)
-    main_text = ' '.join(main_text.split())
+    # Normalize the transaction details
+    details = details.lower().strip()
 
+    # Try exact match first
     for vendor_substring, category in vendor_map.items():
         if vendor_substring == "__custom_categories__":
             continue
         if not isinstance(vendor_substring, str):
             continue
-        vendor_substring = ' '.join(vendor_substring.lower().split())
-        if (vendor_substring in details or
-            vendor_substring in main_text or
-                any(word in details.split() for word in vendor_substring.split())):
+        if vendor_substring.lower() == details:
+            return category
+
+    # Try partial match with numbers and special characters
+    for vendor_substring, category in vendor_map.items():
+        if vendor_substring == "__custom_categories__":
+            continue
+        if not isinstance(vendor_substring, str):
+            continue
+        vendor_substring = vendor_substring.lower()
+        if vendor_substring in details:
+            return category
+
+    # Try word-based match
+    details_words = set(re.findall(r'\w+', details))
+    for vendor_substring, category in vendor_map.items():
+        if vendor_substring == "__custom_categories__":
+            continue
+        if not isinstance(vendor_substring, str):
+            continue
+        vendor_words = set(re.findall(r'\w+', vendor_substring.lower()))
+        if vendor_words.issubset(details_words):
             return category
 
     return "Uncategorized"
@@ -120,11 +137,8 @@ def categorize_transaction(details: str, vendor_map: Dict) -> str:
 def import_vendor_mappings(db: Session = Depends(get_db)):
     """Import vendor mappings from vendor_map.json file."""
     try:
-        imported_count = import_vendor_mappings_from_json(db)
-        return {
-            "message": "Vendor mappings imported successfully",
-            "imported_count": imported_count
-        }
+        # This endpoint is no longer needed since we're not using JSON files
+        raise HTTPException(status_code=410, detail="This endpoint is no longer supported. Please use the database directly.")
     except Exception as e:
         logger.error(f"Error importing vendor mappings: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))

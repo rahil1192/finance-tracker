@@ -1,0 +1,14 @@
+data:
+  persistent_data_file: "all_transactions.parquet"
+  vendor_file: "vendor_map.json"
+  save_dir: "saved_statements"
+
+ui:
+  page_title: "Finance Categorizer"
+  layout: "wide"
+  theme: "light"
+
+processing:
+  max_file_size_mb: 10
+  supported_file_types: ["pdf"]
+  date_format: "%Y-%m-%d"
