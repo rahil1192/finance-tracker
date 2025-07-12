@@ -1,87 +1,74 @@
-# Finance Categorizer
+# Finance App Backend
 
-A production-ready application for categorizing and analyzing financial transactions from PDF statements.
+FastAPI backend for the finance tracking application with Plaid integration.
 
 ## Features
 
-- Upload and process PDF bank statements
-- Automatic vendor categorization
-- Transaction analysis and visualization
-- Persistent storage of transaction history
-- Customizable vendor mapping
-- User-friendly interface
+- Transaction management and categorization
+- Plaid bank account integration
+- Net worth tracking
+- PDF statement parsing
+- Recurring transaction detection
+- RESTful API for mobile app
 
-## Installation
+## Quick Start
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Local Development
 
-## Configuration
+1. **Install dependencies**:
+```bash
+pip install -r requirements.txt
+```
 
-The application can be configured through `config.yaml`:
+2. **Set up environment variables**:
+```bash
+cp env.example .env
+# Edit .env with your Plaid credentials
+```
 
-- `data`: File paths and storage settings
-- `ui`: Interface customization
-- `processing`: Data processing limits and formats
+3. **Run the server**:
+```bash
+python run.py
+```
 
-## Usage
+The API will be available at `http://localhost:8000`
 
-1. Start the application:
+### Production Deployment
 
-   ```bash
-   streamlit run main.py
-   ```
+See `DEPLOYMENT.md` for detailed deployment instructions.
 
-2. Upload PDF bank statements
-3. View and categorize transactions
-4. Analyze spending patterns
-5. Export categorized data
+## API Endpoints
 
-## Error Handling
+### Transactions
+- `GET /api/transactions` - Get all transactions
+- `POST /api/transactions` - Create new transaction
+- `PUT /api/transactions/{id}` - Update transaction
+- `DELETE /api/transactions/{id}` - Delete transaction
 
-The application includes comprehensive error handling:
+### Accounts
+- `GET /api/accounts` - Get all accounts
+- `POST /api/plaid/create_link_token` - Create Plaid link token
+- `POST /api/plaid/exchange_public_token` - Exchange Plaid token
 
-- File validation
-- Data processing errors
-- User input validation
-- Logging to file and console
+### Net Worth
+- `GET /api/networth/history` - Get net worth history
 
-## Performance
+### Categories
+- `GET /api/category_mappings` - Get category mappings
+- `POST /api/category_mappings` - Add category mapping
 
-- Caching for frequently accessed data
-- Optimized data processing
-- Efficient file handling
+## Environment Variables
 
-## Contributing
+- `PLAID_CLIENT_ID` - Your Plaid client ID
+- `PLAID_SECRET` - Your Plaid secret
+- `PLAID_ENV` - Plaid environment (sandbox/development/production)
+- `SECRET_KEY` - Secret key for JWT tokens
+- `DATABASE_URL` - Database connection string
 
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
+## Database
+
+The app uses SQLite for local development and PostgreSQL for production.
 
 ## License
 
-MIT License
-
-## Project Structure
-
-```
-finance_categorizer/
-├── src/
-│   └── finance_categorizer/
-│       ├── models/         # Data models and processing
-│       ├── utils/          # Utility functions
-│       ├── ui/             # UI components
-│       └── main.py         # Main application entry point
-├── saved_statements/       # Directory for saved PDF statements
-├── requirements.txt        # Project dependencies
-└── README.md              # Project documentation
-```
-
-## Configuration
-
-- Vendor mappings are stored in `vendor_map.json`
-- Custom categories are saved in the application state
-- PDF statements are saved in the `saved_statements` directory
+MIT
